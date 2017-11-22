@@ -146,8 +146,8 @@ unsafe impl This for JsValue {
     }
 }
 
-impl<'a> Handle<'a, JsValue> {
-    pub fn variant(self) -> Variant<'a> {
+impl<'j> Handle<'j, JsValue> {
+    pub fn variant(self) -> Variant<'j> {
         match unsafe { neon_runtime::tag::of(self.to_raw()) } {
             Tag::Null => Variant::Null(JsNull::new()),
             Tag::Undefined => Variant::Undefined(JsUndefined::new()),
@@ -163,7 +163,7 @@ impl<'a> Handle<'a, JsValue> {
 }
 
 impl JsValue {
-    pub(crate) fn new_internal<'a>(value: raw::Local) -> Handle<'a, JsValue> {
+    pub(crate) fn new_internal<'j>(value: raw::Local) -> Handle<'j, JsValue> {
         Handle::new_internal(JsValue(value))
     }
 }
@@ -174,11 +174,11 @@ impl JsValue {
 pub struct JsUndefined(raw::Local);
 
 impl JsUndefined {
-    pub fn new<'a>() -> Handle<'a, JsUndefined> {
+    pub fn new<'j>() -> Handle<'j, JsUndefined> {
         JsUndefined::new_internal()
     }
 
-    pub(crate) fn new_internal<'a>() -> Handle<'a, JsUndefined> {
+    pub(crate) fn new_internal<'j>() -> Handle<'j, JsUndefined> {
         unsafe {
             let mut local: raw::Local = mem::zeroed();
             neon_runtime::primitive::undefined(&mut local);
@@ -217,11 +217,11 @@ impl ValueInternal for JsUndefined {
 pub struct JsNull(raw::Local);
 
 impl JsNull {
-    pub fn new<'a>() -> Handle<'a, JsNull> {
+    pub fn new<'j>() -> Handle<'j, JsNull> {
         JsNull::new_internal()
     }
 
-    pub(crate) fn new_internal<'a>() -> Handle<'a, JsNull> {
+    pub(crate) fn new_internal<'j>() -> Handle<'j, JsNull> {
         unsafe {
             let mut local: raw::Local = mem::zeroed();
             neon_runtime::primitive::null(&mut local);
@@ -250,11 +250,11 @@ impl ValueInternal for JsNull {
 pub struct JsBoolean(raw::Local);
 
 impl JsBoolean {
-    pub fn new<'a, T: Scope<'a>>(_: &mut T, b: bool) -> Handle<'a, JsBoolean> {
+    pub fn new<'j, T: Scope<'j>>(_: &mut T, b: bool) -> Handle<'j, JsBoolean> {
         JsBoolean::new_internal(b)
     }
 
-    pub(crate) fn new_internal<'a>(b: bool) -> Handle<'a, JsBoolean> {
+    pub(crate) fn new_internal<'j>(b: bool) -> Handle<'j, JsBoolean> {
         unsafe {
             let mut local: raw::Local = mem::zeroed();
             neon_runtime::primitive::boolean(&mut local, b);
@@ -320,11 +320,11 @@ impl JsString {
         }
     }
 
-    pub fn new<'a, T: Scope<'a>>(scope: &mut T, val: &str) -> Option<Handle<'a, JsString>> {
+    pub fn new<'j, T: Scope<'j>>(scope: &mut T, val: &str) -> Option<Handle<'j, JsString>> {
         JsString::new_internal(scope.isolate(), val)
     }
 
-    pub fn new_or_throw<'a, T: Scope<'a>>(scope: &mut T, val: &str) -> VmResult<Handle<'a, JsString>> {
+    pub fn new_or_throw<'j, T: Scope<'j>>(scope: &mut T, val: &str) -> VmResult<Handle<'j, JsString>> {
         match JsString::new(scope, val) {
             Some(v) => Ok(v),
             None => JsError::throw(Kind::TypeError, "invalid string contents")
@@ -348,17 +348,17 @@ impl JsString {
 }
 
 pub trait ToJsString {
-    fn to_js_string<'a, T: Scope<'a>>(&self, scope: &mut T) -> Handle<'a, JsString>;
+    fn to_js_string<'j, T: Scope<'j>>(&self, scope: &mut T) -> Handle<'j, JsString>;
 }
 
-impl<'b> ToJsString for Handle<'b, JsString> {
-    fn to_js_string<'a, T: Scope<'a>>(&self, _: &mut T) -> Handle<'a, JsString> {
+impl<'j2> ToJsString for Handle<'j2, JsString> {
+    fn to_js_string<'j1, T: Scope<'j1>>(&self, _: &mut T) -> Handle<'j1, JsString> {
         Handle::new_internal(JsString::from_raw(self.to_raw()))
     }
 }
 
-impl<'b> ToJsString for &'b str {
-    fn to_js_string<'a, T: Scope<'a>>(&self, scope: &mut T) -> Handle<'a, JsString> {
+impl<'a> ToJsString for &'a str {
+    fn to_js_string<'j, T: Scope<'j>>(&self, scope: &mut T) -> Handle<'j, JsString> {
         match JsString::new_internal(scope.isolate(), self) {
             Some(s) => s,
             None => JsString::new_internal(scope.isolate(), "").unwrap()
@@ -391,11 +391,11 @@ fn lower_str_unwrap(s: &str) -> (*const u8, i32) {
 pub struct JsNumber(raw::Local);
 
 impl JsNumber {
-    pub fn new<'a, T: Scope<'a>>(scope: &mut T, v: f64) -> Handle<'a, JsNumber> {
+    pub fn new<'j, T: Scope<'j>>(scope: &mut T, v: f64) -> Handle<'j, JsNumber> {
         JsNumber::new_internal(scope.isolate(), v)
     }
 
-    pub(crate) fn new_internal<'a>(isolate: Isolate, v: f64) -> Handle<'a, JsNumber> {
+    pub(crate) fn new_internal<'j>(isolate: Isolate, v: f64) -> Handle<'j, JsNumber> {
         unsafe {
             let mut local: raw::Local = mem::zeroed();
             neon_runtime::primitive::number(&mut local, isolate.to_raw(), v);
@@ -463,7 +463,7 @@ impl Key for u32 {
     }
 }
 
-impl<'a, K: Value> Key for Handle<'a, K> {
+impl<'j, K: Value> Key for Handle<'j, K> {
     unsafe fn get(self, out: &mut raw::Local, obj: raw::Local) -> bool {
         neon_runtime::object::get(out, obj, self.to_raw())
     }
@@ -487,7 +487,7 @@ impl<'a> Key for &'a str {
 
 /// The trait of all object types.
 pub trait Object: Value {
-    fn get<'a, T: Scope<'a>, K: Key>(self, _: &mut T, key: K) -> VmResult<Handle<'a, JsValue>> {
+    fn get<'j, T: Scope<'j>, K: Key>(self, _: &mut T, key: K) -> VmResult<Handle<'j, JsValue>> {
         build(|out| { unsafe { key.get(out, self.to_raw()) } })
     }
 
@@ -508,7 +508,7 @@ pub trait Object: Value {
 impl Object for JsObject { }
 
 impl JsObject {
-    pub fn new<'a, T: Scope<'a>>(_: &mut T) -> Handle<'a, JsObject> {
+    pub fn new<'j, T: Scope<'j>>(_: &mut T) -> Handle<'j, JsObject> {
         JsObject::new_internal()
     }
 
@@ -516,7 +516,7 @@ impl JsObject {
         JsObject::build(|out| { unsafe { neon_runtime::object::new(out) } })
     }
 
-    pub(crate) fn build<'a, F: FnOnce(&mut raw::Local)>(init: F) -> Handle<'a, JsObject> {
+    pub(crate) fn build<'j, F: FnOnce(&mut raw::Local)>(init: F) -> Handle<'j, JsObject> {
         unsafe {
             let mut local: raw::Local = mem::zeroed();
             init(&mut local);

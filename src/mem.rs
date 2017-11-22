@@ -21,27 +21,27 @@ pub trait Managed: Copy {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct Handle<'a, T: Managed + 'a> {
+pub struct Handle<'j, T: Managed + 'j> {
     value: T,
-    phantom: PhantomData<&'a T>
+    phantom: PhantomData<&'j T>
 }
 
-impl<'a, T: Value + 'a> Handle<'a, T> {
-    pub fn lock(self) -> LockedHandle<'a, T> {
+impl<'j, T: Value + 'j> Handle<'j, T> {
+    pub fn lock(self) -> LockedHandle<'j, T> {
         LockedHandle::new(self)
     }
 }
 
-impl<'a, T: Managed + 'a> PartialEq for Handle<'a, T> {
+impl<'j, T: Managed + 'j> PartialEq for Handle<'j, T> {
     fn eq(&self, other: &Self) -> bool {
         unsafe { neon_runtime::mem::same_handle(self.to_raw(), other.to_raw()) }
     }
 }
 
-impl<'a, T: Managed + 'a> Eq for Handle<'a, T> { }
+impl<'j, T: Managed + 'j> Eq for Handle<'j, T> { }
 
-impl<'a, T: Managed + 'a> Handle<'a, T> {
-    pub(crate) fn new_internal(value: T) -> Handle<'a, T> {
+impl<'j, T: Managed + 'j> Handle<'j, T> {
+    pub(crate) fn new_internal(value: T) -> Handle<'j, T> {
         Handle {
             value: value,
             phantom: PhantomData
@@ -49,9 +49,9 @@ impl<'a, T: Managed + 'a> Handle<'a, T> {
     }
 }
 
-impl<'a, T: Value> Handle<'a, T> {
+impl<'j, T: Value> Handle<'j, T> {
     // This method does not require a scope because it only copies a handle.
-    pub fn upcast<U: Value + SuperType<T>>(&self) -> Handle<'a, U> {
+    pub fn upcast<U: Value + SuperType<T>>(&self) -> Handle<'j, U> {
         Handle::new_internal(SuperType::upcast_internal(self.value))
     }
 
@@ -59,11 +59,11 @@ impl<'a, T: Value> Handle<'a, T> {
         U::downcast(self.value).is_some()
     }
 
-    pub fn downcast<U: Value>(&self) -> Option<Handle<'a, U>> {
+    pub fn downcast<U: Value>(&self) -> Option<Handle<'j, U>> {
         U::downcast(self.value).map(Handle::new_internal)
     }
 
-    pub fn check<U: Value>(&self) -> JsResult<'a, U> {
+    pub fn check<U: Value>(&self) -> JsResult<'j, U> {
         match U::downcast(self.value) {
             Some(v) => Ok(Handle::new_internal(v)),
             None => JsError::throw(Kind::TypeError, "type error")
@@ -71,35 +71,35 @@ impl<'a, T: Value> Handle<'a, T> {
     }
 }
 
-impl<'a, T: Managed> Deref for Handle<'a, T> {
+impl<'j, T: Managed> Deref for Handle<'j, T> {
     type Target = T;
-    fn deref<'b>(&'b self) -> &'b T {
+    fn deref(&self) -> &T {
         &self.value
     }
 }
 
-impl<'a, T: Managed> DerefMut for Handle<'a, T> {
-    fn deref_mut<'b>(&'b mut self) -> &'b mut T {
+impl<'j, T: Managed> DerefMut for Handle<'j, T> {
+    fn deref_mut(&mut self) -> &mut T {
         &mut self.value
     }
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct LockedHandle<'a, T: Value + 'a>(Handle<'a, T>);
+pub struct LockedHandle<'j, T: Value + 'j>(Handle<'j, T>);
 
-unsafe impl<'a, T: Value + 'a> Sync for LockedHandle<'a, T> { }
+unsafe impl<'j, T: Value + 'j> Sync for LockedHandle<'j, T> { }
 
-impl<'a, T: Value + 'a> LockedHandle<'a, T> {
-    pub fn new(h: Handle<'a, T>) -> LockedHandle<'a, T> {
+impl<'j, T: Value + 'j> LockedHandle<'j, T> {
+    pub fn new(h: Handle<'j, T>) -> LockedHandle<'j, T> {
         LockedHandle(h)
     }
 
-    pub fn unlock<'b, U: Scope<'b>>(self, _: &mut U) -> Handle<'a, T> { self.0 }
+    pub fn unlock<'b, U: Scope<'b>>(self, _: &mut U) -> Handle<'j, T> { self.0 } // unused function?
 }
 
-impl<'a, T: Value> Lock for LockedHandle<'a, T> {
-    type Internals = LockedHandle<'a, T>;
+impl<'j, T: Value> Lock for LockedHandle<'j, T> {
+    type Internals = LockedHandle<'j, T>;
 
     unsafe fn expose(self, _: &mut LockState) -> Self::Internals {
         self
